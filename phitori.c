@@ -80,7 +80,7 @@ void send_stack(State *stack, int top, int dest, int rows, int cols, MPI_Datatyp
     free(compressed_stack);
 }
 
-bool have_enough_work_to_share(State *stack, int top, int cutoff_depth, int *count) {
+bool have_enough_work_to_share(State *stack, int top, int stack_cutoff, int *count) {
     if (top < 0) {
         return false;
     }
@@ -89,14 +89,14 @@ bool have_enough_work_to_share(State *stack, int top, int cutoff_depth, int *cou
         (*count)++;
     }
 
-    if (*count > 10) {
+    if (*count > stack_cutoff) {
         return true;
     }
 
     return false;
 }
 
-State* split_work_from_stack(State **stack, int *top, int rows, int cols, int *num_states, int cutoff_depth, int cutoff_index) {
+State* split_work_from_stack(State **stack, int *top, int rows, int cols, int *num_states, int cutoff_index) {
     if (cutoff_index > *top) {
         cutoff_index = *top / 2;
     }
@@ -134,11 +134,11 @@ State* split_work_from_stack(State **stack, int *top, int rows, int cols, int *n
     return work_to_send;
 }
 
-void handle_work_request(int requesting_process, State **stack, int *top, int rank, int size, int rows, int cols, int cutoff_depth, MPI_Datatype compressed_state_type) {
+void handle_work_request(int requesting_process, State **stack, int *top, int rank, int size, int rows, int cols, int stack_cutoff, MPI_Datatype compressed_state_type) {
     int count = 0;
-    if (have_enough_work_to_share(*stack, *top, cutoff_depth, &count)) {
+    if (have_enough_work_to_share(*stack, *top, stack_cutoff, &count)) {
         int num_states;
-        State* work_to_send = split_work_from_stack(stack, top, rows, cols, &num_states, cutoff_depth, count);
+        State* work_to_send = split_work_from_stack(stack, top, rows, cols, &num_states, count);
 
         send_stack(work_to_send, num_states, requesting_process, rows, cols, compressed_state_type, rank, size);
 
@@ -155,7 +155,7 @@ void handle_work_request(int requesting_process, State **stack, int *top, int ra
     }
 }
 
-void handle_incoming_requests(State **stack, int *top, int rank, int size, int rows, int cols, int cutoff_depth, MPI_Datatype compressed_state_type) {
+void handle_incoming_requests(State **stack, int *top, int rank, int size, int rows, int cols, int stack_cutoff, MPI_Datatype compressed_state_type) {
     MPI_Status status;
     int flag;
 
@@ -167,7 +167,7 @@ void handle_incoming_requests(State **stack, int *top, int rank, int size, int r
         char request;
         MPI_Recv(&request, 1, MPI_CHAR, source, REQUEST_TAG, MPI_COMM_WORLD, &status);
 
-        handle_work_request(source, stack, top, rank, size, rows, cols, cutoff_depth, compressed_state_type);
+        handle_work_request(source, stack, top, rank, size, rows, cols, stack_cutoff, compressed_state_type);
 
         MPI_Iprobe(MPI_ANY_SOURCE, REQUEST_TAG, MPI_COMM_WORLD, &flag, &status);
     }
@@ -291,7 +291,7 @@ void send_token(char *token, int rank, int size) {
     }
 }
 
-void generateConfigurations(int **matrix, int rows, int cols, bool **visited, int rank, int size, int cutoff_depth, int work_chunk_size, MPI_Datatype compressed_state_type) {
+void generateConfigurations(int **matrix, int rows, int cols, bool **visited, int rank, int size, int stack_cutoff, int work_chunk_size, MPI_Datatype compressed_state_type) {
     long count = 0;
     bool found_solution = false;
     bool terminate = false;
@@ -404,7 +404,7 @@ void generateConfigurations(int **matrix, int rows, int cols, bool **visited, in
             }
         }
 
-        handle_incoming_requests(&stack, &top, rank, size, rows, cols, cutoff_depth, compressed_state_type);
+        handle_incoming_requests(&stack, &top, rank, size, rows, cols, stack_cutoff, compressed_state_type);
 
         if (token == -1)
             handle_token_reception(&token, rank, size);
@@ -440,7 +440,7 @@ int main(int argc, char** argv) {
 
     int n = 0;
     bool random = true;
-    int cutoff_depth = 0;
+    int stack_cutoff = 0;
     int work_chunk_size = 0;
 
     int option;
@@ -454,7 +454,7 @@ int main(int argc, char** argv) {
                 n = 8;
                 break;
             case 'c':
-                cutoff_depth = atoi(optarg);
+                stack_cutoff = atoi(optarg);
                 break;
             case 'w':
                 work_chunk_size = atoi(optarg);
@@ -476,7 +476,7 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    if (cutoff_depth == 0 || work_chunk_size == 0) {
+    if (stack_cutoff == 0 || work_chunk_size == 0) {
         if (rank == 0)
             printf("Please, specify the cutoff depth and work chunk size parameters\n");
         MPI_Finalize();
@@ -484,7 +484,7 @@ int main(int argc, char** argv) {
     }
 
     if (rank == 0) {
-        printf("CUTOFF_DEPTH: %d\n", cutoff_depth);
+        printf("CUTOFF_DEPTH: %d\n", stack_cutoff);
         printf("WORK_CHUNK_SIZE: %d\n", work_chunk_size);
     }
 
@@ -507,7 +507,7 @@ int main(int argc, char** argv) {
     for (int i = 0; i < n; i++)
         MPI_Bcast(matrix[i], n, MPI_INT, 0, MPI_COMM_WORLD);
 
-    generateConfigurations(matrix, n, n, visited, rank, size, cutoff_depth, work_chunk_size, compressed_state_type);
+    generateConfigurations(matrix, n, n, visited, rank, size, stack_cutoff, work_chunk_size, compressed_state_type);
     MPI_Barrier(MPI_COMM_WORLD);
     double end_time = MPI_Wtime();
 
