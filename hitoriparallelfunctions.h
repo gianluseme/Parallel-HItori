@@ -45,15 +45,15 @@ void execute_command(const char *command) {
     }
 }
 
-int calculate_state_size(int rows, int cols) {
-    return sizeof(int) * 2 + (rows * cols * (sizeof(char) + 7));  // Allinea a 8 byte
+int calculate_state_size(int rows) {
+    return sizeof(int) * 2 + (rows * rows * (sizeof(char) + 7));  // Allinea a 8 byte
 }
 
-void send_stack(State *stack, int top, int dest, int rows, int cols, MPI_Datatype compressed_state_type, int rank, int size) {
+void send_stack(State *stack, int top, int dest, int rows, MPI_Datatype compressed_state_type, int rank, int size) {
     CompressedState *compressed_stack = malloc(top * sizeof(CompressedState));
 
     for (int i = 0; i < top; i++) {
-        compressed_stack[i].compressed_status = gridToNumber(stack[i].status, rows, cols);
+        compressed_stack[i].compressed_status = gridToNumber(stack[i].status, rows);
         compressed_stack[i].row = stack[i].row;
         compressed_stack[i].col = stack[i].col;
     }
@@ -81,7 +81,7 @@ bool have_enough_work_to_share(int top, int stack_cutoff, int *count) {
     return false;
 }
 
-State* split_work_from_stack(State **stack, int *top, int rows, int cols, int *num_states, int cutoff_index) {
+State* split_work_from_stack(State **stack, int *top, int rows, int *num_states, int cutoff_index) {
     if (cutoff_index > *top) {
         cutoff_index = *top / 2;
     }
@@ -99,12 +99,12 @@ State* split_work_from_stack(State **stack, int *top, int rows, int cols, int *n
         MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
     }
 
-    for (int i = *num_states - 1; i >= 0; i--) {
+    for (int i = 0; i < *num_states; i++) {
         work_to_send[i] = (*stack)[split_point + i];
         work_to_send[i].status = malloc(rows * sizeof(char*));
         for (int j = 0; j < rows; j++) {
-            work_to_send[i].status[j] = malloc(cols * sizeof(char));
-            memcpy(work_to_send[i].status[j], (*stack)[split_point + i].status[j], cols * sizeof(char));
+            work_to_send[i].status[j] = malloc(rows * sizeof(char));
+            memcpy(work_to_send[i].status[j], (*stack)[split_point + i].status[j], rows * sizeof(char));
         }
     }
 
@@ -119,13 +119,13 @@ State* split_work_from_stack(State **stack, int *top, int rows, int cols, int *n
     return work_to_send;
 }
 
-void handle_work_request(int requesting_process, State **stack, int *top, int rank, int size, int rows, int cols, int stack_cutoff, MPI_Datatype compressed_state_type) {
+void handle_work_request(int requesting_process, State **stack, int *top, int rank, int size, int rows, int stack_cutoff, MPI_Datatype compressed_state_type) {
     int count = 0;
     if (have_enough_work_to_share(*top, stack_cutoff, &count)) {
         int num_states;
-        State* work_to_send = split_work_from_stack(stack, top, rows, cols, &num_states, count);
+        State* work_to_send = split_work_from_stack(stack, top, rows, &num_states, count);
 
-        send_stack(work_to_send, num_states, requesting_process, rows, cols, compressed_state_type, rank, size);
+        send_stack(work_to_send, num_states, requesting_process, rows, compressed_state_type, rank, size);
 
         for (int i = 0; i < num_states; i++) {
             for (int j = 0; j < rows; j++) {
@@ -140,7 +140,7 @@ void handle_work_request(int requesting_process, State **stack, int *top, int ra
     }
 }
 
-void handle_incoming_requests(State **stack, int *top, int rank, int size, int rows, int cols, int stack_cutoff, MPI_Datatype compressed_state_type) {
+void handle_incoming_requests(State **stack, int *top, int rank, int size, int rows, int stack_cutoff, MPI_Datatype compressed_state_type) {
     MPI_Status status;
     int flag;
 
@@ -152,13 +152,13 @@ void handle_incoming_requests(State **stack, int *top, int rank, int size, int r
         char request;
         MPI_Recv(&request, 1, MPI_CHAR, source, REQUEST_TAG, MPI_COMM_WORLD, &status);
 
-        handle_work_request(source, stack, top, rank, size, rows, cols, stack_cutoff, compressed_state_type);
+        handle_work_request(source, stack, top, rank, size, rows, stack_cutoff, compressed_state_type);
 
         MPI_Iprobe(MPI_ANY_SOURCE, REQUEST_TAG, MPI_COMM_WORLD, &flag, &status);
     }
 }
 
-bool request_work(State **stack, int *top, int rank, int size, int rows, int cols, MPI_Datatype compressed_state_type) {
+bool request_work(State **stack, int *top, int rank, int size, int rows, MPI_Datatype compressed_state_type) {
     MPI_Status status;
     int stack_size = 0;
 
@@ -179,14 +179,14 @@ bool request_work(State **stack, int *top, int rank, int size, int rows, int col
                 MPI_Recv(compressed_stack, stack_size, compressed_state_type, target, WORK_TAG, MPI_COMM_WORLD, &status);
 
                 *top = stack_size - 1;
-                *stack = realloc(*stack, (*top + 1) * calculate_state_size(rows, cols));
+                *stack = realloc(*stack, (*top + 1) * calculate_state_size(rows));
 
                 for (int i = 0; i <= *top; i++) {
                     (*stack)[i].status = malloc(rows * sizeof(char*));
                     for (int r = 0; r < rows; r++) {
-                        (*stack)[i].status[r] = malloc(cols * sizeof(char));
+                        (*stack)[i].status[r] = malloc(rows * sizeof(char));
                     }
-                    numberToGrid(compressed_stack[i].compressed_status, (*stack)[i].status, rows, cols);
+                    numberToGrid(compressed_stack[i].compressed_status, (*stack)[i].status, rows);
                     (*stack)[i].row = compressed_stack[i].row;
                     (*stack)[i].col = compressed_stack[i].col;
                 }
@@ -258,7 +258,6 @@ void handle_token_reception(char *token, int rank, int size) {
 
     if (flag) {
         MPI_Recv(token, 1, MPI_CHAR, source, TOKEN_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-        printf("Process %d received token from process %d with color %c\n", rank, source, *token);
     }
 }
 
@@ -268,29 +267,28 @@ void send_token(char *token, int rank, int size) {
             *token = 'B'; // BLACK
 
         MPI_Send(token, 1, MPI_CHAR, (rank + 1) % size, TOKEN_TAG, MPI_COMM_WORLD);
-        printf("Process %d sent token to process %d with color %c\n", rank, (rank + 1) % size, *token);
 
         proc_state = WHITE;
         *token = -1;
     }
 }
 
-void generateConfigurations(int **matrix, int rows, int cols, bool **visited, int rank, int size, int stack_cutoff, int work_chunk_size, MPI_Datatype compressed_state_type, bool benchmark_mode) {
+void generateConfigurations(int **matrix, int rows, bool **visited, int rank, int size, int stack_cutoff, int work_chunk_size, MPI_Datatype compressed_state_type, bool benchmark_mode) {
     long count = 0;
     bool found_solution = false;
     bool terminate = false;
-    const int NUMRETRY = 3;
+    const int NUMRETRY = 50;
     char token = (rank == 0) ? 'W' : -1; // Token per l'anello, inizializzato nel processo root
 
-    State *stack = malloc(size * calculate_state_size(rows, cols));
+    State *stack = malloc(size * calculate_state_size(rows));
     int top = -1;
 
     if (rank == 0) {
         State initialState;
         initialState.status = malloc(rows * sizeof(char*));
         for (int i = 0; i < rows; i++) {
-            initialState.status[i] = malloc(cols * sizeof(char));
-            memset(initialState.status[i], '.', cols * sizeof(char));
+            initialState.status[i] = malloc(rows * sizeof(char));
+            memset(initialState.status[i], '.', rows * sizeof(char));
         }
         initialState.row = 0;
         initialState.col = 0;
@@ -318,7 +316,7 @@ void generateConfigurations(int **matrix, int rows, int cols, bool **visited, in
 
             bool received_work = false;
             for (int j = 0; j < NUMRETRY; j++) {
-                received_work = request_work(&stack, &top, rank, size, rows, cols, compressed_state_type);
+                received_work = request_work(&stack, &top, rank, size, rows, compressed_state_type);
                 if (received_work) {
                     break;
                 }
@@ -333,8 +331,8 @@ void generateConfigurations(int **matrix, int rows, int cols, bool **visited, in
                 if (row == rows) {
                     i++;
                     count++;
-                    if (is_valid(matrix, currentState.status, rows, cols)) {
-                        print_solution(currentState.status, rows, cols, matrix);
+                    if (is_valid(matrix, currentState.status, rows, rows)) {
+                        print_solution(currentState.status, rows, matrix);
                         found_solution = true;
                         printf("Process %d: Solution found\n", rank);
                     }
@@ -351,26 +349,26 @@ void generateConfigurations(int **matrix, int rows, int cols, bool **visited, in
                     continue;
                 }
 
-                int nextRow = col == cols - 1 ? row + 1 : row;
-                int nextCol = col == cols - 1 ? 0 : col + 1;
+                int nextRow = col == rows - 1 ? row + 1 : row;
+                int nextCol = col == rows - 1 ? 0 : col + 1;
 
                 State nextState;
                 nextState.status = malloc(rows * sizeof(char*));
                 for (int j = 0; j < rows; j++) {
-                    nextState.status[j] = malloc(cols * sizeof(char));
-                    memcpy(nextState.status[j], currentState.status[j], cols * sizeof(char));
+                    nextState.status[j] = malloc(rows * sizeof(char));
+                    memcpy(nextState.status[j], currentState.status[j], rows * sizeof(char));
                 }
 
                 nextState.row = nextRow;
                 nextState.col = nextCol;
                 stack[++top] = nextState;
 
-                if (isSafe(currentState.status, rows, cols, row, col, visited, matrix)) {
+                if (isSafe(currentState.status, rows, rows, row, col, visited, matrix)) {
                     State nextStateX;
                     nextStateX.status = malloc(rows * sizeof(char*));
                     for (int j = 0; j < rows; j++) {
-                        nextStateX.status[j] = malloc(cols * sizeof(char));
-                        memcpy(nextStateX.status[j], currentState.status[j], cols * sizeof(char));
+                        nextStateX.status[j] = malloc(rows * sizeof(char));
+                        memcpy(nextStateX.status[j], currentState.status[j], rows * sizeof(char));
                     }
                     nextStateX.status[row][col] = 'X';
                     nextStateX.row = nextRow;
@@ -385,7 +383,7 @@ void generateConfigurations(int **matrix, int rows, int cols, bool **visited, in
             }
         }
 
-        handle_incoming_requests(&stack, &top, rank, size, rows, cols, stack_cutoff, compressed_state_type);
+        handle_incoming_requests(&stack, &top, rank, size, rows, stack_cutoff, compressed_state_type);
 
         if (token == -1)
             handle_token_reception(&token, rank, size);

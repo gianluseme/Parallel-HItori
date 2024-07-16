@@ -10,20 +10,20 @@
 #include <time.h>
 
 
-void print_grid(int **matrix, int n, int m) {
+void print_grid(int **matrix, int n) {
     printf("Grid:\n");
     for (int i = 0; i < n; i++) {
-        for (int j = 0; j < m; j++) {
+        for (int j = 0; j < n; j++) {
             printf("%d ", matrix[i][j]);
         }
         printf("\n");
     }
 }
 
-void print_solution(char **status, int n, int m, int **matrix) {
+void print_solution(char **status, int n, int **matrix) {
     printf("Solution:\n");
     for (int i = 0; i < n; i++) {
-        for (int j = 0; j < m; j++) {
+        for (int j = 0; j < n; j++) {
             if(status[i][j] == 'X')
                 printf("█ ");
             else printf("%d ",matrix[i][j]);
@@ -43,17 +43,17 @@ void shuffle(int *array, int size) {
     }
 }
 
-void initialize_grid(int **matrix, int n, int m, bool random) {
+void initialize_grid(int **matrix, int n, bool random) {
     if (random) {
-        int *numbers = malloc(n * m * sizeof(int));
+        int *numbers = malloc(n * n * sizeof(int));
         int max_duplicates = 1;
-        for (int i = 0; i < n * m; i++) {
-            numbers[i] = i % (m / max_duplicates) + 1;
+        for (int i = 0; i < n * n; i++) {
+            numbers[i] = i % (n / max_duplicates) + 1;
         }
-        shuffle(numbers, n * m);
+        shuffle(numbers, n * n);
         int count = 0;
         for (int i = 0; i < n; i++) {
-            for (int j = 0; j < m; j++) {
+            for (int j = 0; j < n; j++) {
                 matrix[i][j] = numbers[count++];
             }
         }
@@ -71,7 +71,7 @@ void initialize_grid(int **matrix, int n, int m, bool random) {
                 {3, 3, 4, 6, 2, 8, 7, 1}
         };
         for (int i = 0; i < n && i < 8; i++) {
-            for (int j = 0; j < m && j < 8; j++) {
+            for (int j = 0; j < n && j < 8; j++) {
                 matrix[i][j] = values[i][j];
             }
         }
@@ -79,10 +79,10 @@ void initialize_grid(int **matrix, int n, int m, bool random) {
 }
 
 
-bool** createVisitedMatrix(int n, int m) {
+bool** createVisitedMatrix(int n) {
     bool** matrix = (bool**)malloc(n * sizeof(bool*));
     for (int i = 0; i < n; i++) {
-        matrix[i] = (bool*)malloc(m * sizeof(bool));
+        matrix[i] = (bool*)malloc(n * sizeof(bool));
     }
     return matrix;
 }
@@ -95,23 +95,23 @@ void freeVisitedMatrix(bool** matrix, int n) {
 }
 
 // Funzione DFS ottimizzata
-void dfs(int row, int col, bool **visited, char **board, int n, int m) {
-    if (row < 0 || row >= n || col < 0 || col >= m || visited[row][col] || board[row][col] == 'X') {
+void dfs(int row, int col, bool **visited, char **board, int n) {
+    if (row < 0 || row >= n || col < 0 || col >= n || visited[row][col] || board[row][col] == 'X') {
         return;
     }
     visited[row][col] = true;
-    dfs(row - 1, col, visited, board, n, m);
-    dfs(row + 1, col, visited, board, n, m);
-    dfs(row, col - 1, visited, board, n, m);
-    dfs(row, col + 1, visited, board, n, m);
+    dfs(row - 1, col, visited, board, n);
+    dfs(row + 1, col, visited, board, n);
+    dfs(row, col - 1, visited, board, n);
+    dfs(row, col + 1, visited, board, n);
 }
 
 // Funzione per verificare la presenza di un'isola
-bool hasIsland(char **board, bool **visited, int n, int m) {
+bool hasIsland(char **board, bool **visited, int n) {
     // Trova un punto non visitato
     int startRow = -1, startCol = -1;
     for (int i = 0; i < n && startRow == -1; i++) {
-        for (int j = 0; j < m; j++) {
+        for (int j = 0; j < n; j++) {
             if (board[i][j] != 'X') {
                 startRow = i;
                 startCol = j;
@@ -125,15 +125,15 @@ bool hasIsland(char **board, bool **visited, int n, int m) {
 
     // Inizializza la matrice visited
     for (int i = 0; i < n; i++) {
-        memset(visited[i], false, m * sizeof(bool));
+        memset(visited[i], false, n * sizeof(bool));
     }
 
     // Esegui DFS a partire dal primo punto trovato
-    dfs(startRow, startCol, visited, board, n, m);
+    dfs(startRow, startCol, visited, board, n);
 
     // Verifica se c'è qualche cella non visitata che non è 'X'
     for (int i = 0; i < n; i++) {
-        for (int j = 0; j < m; j++) {
+        for (int j = 0; j < n; j++) {
             if (board[i][j] != 'X' && !visited[i][j]) {
                 return true; // C'è un'isola
             }
@@ -297,7 +297,7 @@ int isSafe(char **status, int rows, int cols, int row, int col, bool **visited, 
 
 
     // Verifica la connettività
-    bool isConnected = !hasIsland(status, visited, rows, cols);
+    bool isConnected = !hasIsland(status, visited, rows);
 
     status[row][col] = '.'; // Ripristina lo stato originale
 
@@ -305,12 +305,12 @@ int isSafe(char **status, int rows, int cols, int row, int col, bool **visited, 
 }
 
 // Funzione per convertire la griglia in un numero intero univoco
-uint64_t gridToNumber(char **grid, int rows, int cols) {
+uint64_t gridToNumber(char **grid, int rows) {
     uint64_t number = 0;
     for (int i = 0; i < rows; i++) {
-        for (int j = 0; j < cols; j++) {
+        for (int j = 0; j < rows; j++) {
             if (grid[i][j] == 'X') {
-                number |= ((uint64_t)1 << (i * cols + j));
+                number |= ((uint64_t)1 << (i * rows + j));
             }
         }
     }
@@ -318,10 +318,10 @@ uint64_t gridToNumber(char **grid, int rows, int cols) {
 }
 
 // Funzione per convertire un numero intero in una griglia
-void numberToGrid(uint64_t number, char **grid, int rows, int cols) {
+void numberToGrid(uint64_t number, char **grid, int rows) {
     for (int i = 0; i < rows; i++) {
-        for (int j = 0; j < cols; j++) {
-            grid[i][j] = (number & ((uint64_t)1 << (i * cols + j))) ? 'X' : '.';
+        for (int j = 0; j < rows; j++) {
+            grid[i][j] = (number & ((uint64_t)1 << (i * rows + j))) ? 'X' : '.';
         }
     }
 }

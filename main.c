@@ -96,12 +96,12 @@ int main(int argc, char** argv) {
 
     srand(60);
 
-    initialize_grid(matrix, n, n, random);
+    initialize_grid(matrix, n, random);
     if (rank == 0) {
-        print_grid(matrix, n, n);
+        print_grid(matrix, n);
     }
 
-    bool **visited = createVisitedMatrix(n, n);
+    bool **visited = createVisitedMatrix(n);
 
     double total_time = 0.0;
 
@@ -114,7 +114,7 @@ int main(int argc, char** argv) {
         for (int i = 0; i < n; i++)
             MPI_Bcast(matrix[i], n, MPI_INT, 0, MPI_COMM_WORLD);
 
-        generateConfigurations(matrix, n, n, visited, rank, size, stack_cutoff, work_chunk_size, compressed_state_type, benchmark_mode);
+        generateConfigurations(matrix, n, visited, rank, size, stack_cutoff, work_chunk_size, compressed_state_type, benchmark_mode);
 
         MPI_Barrier(MPI_COMM_WORLD);
         double end_time = MPI_Wtime();
