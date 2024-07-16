@@ -10,13 +10,15 @@ find_package(MPI REQUIRED)
 include_directories(.)
 
 # Imposta le opzioni di compilazione
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Ofast -march=native -funroll-all-loops")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O2 -g -Wall -Wextra -pedantic -fno-strict-aliasing -fstack-protector -D_FORTIFY_SOURCE=2")
 set(CMAKE_C_STANDARD_LIBRARIES "${CMAKE_C_STANDARD_LIBRARIES} -lm")
 
 # Aggiungi il file sorgente e crea l'eseguibile
 add_executable(parallel_hitori
         hitoriseqfunctions.h
-        phitori.c)
+        hitoriparallelfunctions.h
+        main.c
+)
 
 # Link MPI librerie
 target_link_libraries(parallel_hitori ${MPI_LIBRARIES})

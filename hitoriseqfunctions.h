@@ -10,28 +10,7 @@
 #include <time.h>
 
 
-typedef struct {
-    char status;
-} Cell;
-
-
-// Definizione della struttura
-struct Grid {
-    int value;
-    char status;
-};
-
-void print_grid(struct Grid **matrix, int n, int m) {
-    printf("Grid:\n");
-    for (int i = 0; i < n; i++) {
-        for (int j = 0; j < m; j++) {
-            printf("%d ", matrix[i][j].value);
-        }
-        printf("\n");
-    }
-}
-
-void print_grid_1(int **matrix, int n, int m) {
+void print_grid(int **matrix, int n, int m) {
     printf("Grid:\n");
     for (int i = 0; i < n; i++) {
         for (int j = 0; j < m; j++) {
@@ -41,20 +20,7 @@ void print_grid_1(int **matrix, int n, int m) {
     }
 }
 
-void print_solution(struct Grid **matrix, int n, int m) {
-    printf("Solution:\n");
-    for (int i = 0; i < n; i++) {
-        for (int j = 0; j < m; j++) {
-            if(matrix[i][j].status == 'X')
-                printf("█ ");
-            else printf("%d ",matrix[i][j].value);
-        }
-        printf("\n");
-    }
-}
-
-
-void print_solution_1(char **status, int n, int m, int **matrix) {
+void print_solution(char **status, int n, int m, int **matrix) {
     printf("Solution:\n");
     for (int i = 0; i < n; i++) {
         for (int j = 0; j < m; j++) {
@@ -77,44 +43,7 @@ void shuffle(int *array, int size) {
     }
 }
 
-void initialize_grid(struct Grid **matrix, int n, int m, bool random) {
-    if (random) {
-        int *numbers = malloc(n * m * sizeof(int));
-        int max_duplicates = 1;
-        for (int i = 0; i < n * m; i++) {
-            numbers[i] = i % (m / max_duplicates) + 1;
-        }
-        shuffle(numbers, n * m);
-        int count = 0;
-        for (int i = 0; i < n; i++) {
-            for (int j = 0; j < m; j++) {
-                matrix[i][j].value = numbers[count++];
-                matrix[i][j].status = '.';
-            }
-        }
-        free(numbers);
-    } else {
-        // Griglia predefinita (modificare secondo necessità per il caso rettangolare)
-        int values[8][8] = {
-                {4, 8, 7, 2, 3, 2, 1, 2},
-                {5, 6, 1, 3, 4, 1, 5, 7},
-                {7, 2, 2, 8, 2, 1, 7, 3},
-                {5, 7, 1, 4, 8, 3, 6, 4},
-                {7, 1, 5, 2, 2, 7, 5, 4},
-                {6, 4, 1, 7, 5, 2, 8, 1},
-                {3, 7, 6, 5, 6, 4, 2, 8},
-                {3, 3, 4, 6, 2, 8, 7, 1}
-        };
-        for (int i = 0; i < n && i < 8; i++) {
-            for (int j = 0; j < m && j < 8; j++) {
-                matrix[i][j].value = values[i][j];
-                matrix[i][j].status = '.';
-            }
-        }
-    }
-}
-
-void initialize_grid_1(int **matrix, int n, int m, bool random) {
+void initialize_grid(int **matrix, int n, int m, bool random) {
     if (random) {
         int *numbers = malloc(n * m * sizeof(int));
         int max_duplicates = 1;
@@ -163,14 +92,6 @@ void freeVisitedMatrix(bool** matrix, int n) {
         free(matrix[i]);
     }
     free(matrix);
-}
-
-bool can_place_X(struct Grid **matrix, int row, int col, int n, int m) {
-    if (row > 0 && matrix[row - 1][col].status == 'X') return false;
-    if (row < n - 1 && matrix[row + 1][col].status == 'X') return false;
-    if (col > 0 && matrix[row][col - 1].status == 'X') return false;
-    if (col < m - 1 && matrix[row][col + 1].status == 'X') return false;
-    return true;
 }
 
 // Funzione DFS ottimizzata
@@ -404,14 +325,3 @@ void numberToGrid(uint64_t number, char **grid, int rows, int cols) {
         }
     }
 }
-
-// Funzione per stampare una soluzione in formato griglia
-void print_status(char **grid, int rows, int cols) {
-    for (int i = 0; i < rows; i++) {
-        for (int j = 0; j < cols; j++) {
-            printf("%c ", grid[i][j]); // Usa il carattere di stato
-        }
-        printf("\n");
-    }
-}
-
