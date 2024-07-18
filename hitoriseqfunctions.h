@@ -325,3 +325,11 @@ void numberToGrid(uint64_t number, char **grid, int rows) {
         }
     }
 }
+
+void execute_command(const char *command) {
+    int result = system(command);
+    if (result == -1) {
+        perror("system");
+        MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
+    }
+}

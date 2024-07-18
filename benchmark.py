@@ -36,20 +36,21 @@ def update_results_file(results_file, new_data):
     rows.sort(key=lambda x: int(x['p']))
 
     with open(results_file, 'w', newline='') as csvfile:
-        fieldnames = ['p', 'tempo di esecuzione', 'tempo di esecuzione ideale', 'speedup', 'efficienza']
+        fieldnames = ['p', 'tempo di esecuzione', 'tempo di esecuzione ideale', 'speedup', 'efficienza', 'tempo sequenziale', 'amdahl', 'gustafson']
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(rows)
 
 def main():
-    if len(sys.argv) != 5:
-        print("Usage: benchmark.py <p> <execution_time> <matrix_size> <results_dir>")
+    if len(sys.argv) != 6:
+        print("Usage: benchmark.py <p> <execution_time> <matrix_size> <results_dir> <sequential_fraction>")
         sys.exit(1)
 
     p = int(sys.argv[1])
     execution_time = float(sys.argv[2])
     matrix_size = int(sys.argv[3])
     results_dir = os.path.join("..", sys.argv[4])  # Cambia results_dir per puntare alla directory precedente
+    sequential_fraction = float(sys.argv[5])
 
     results_file = os.path.join(results_dir, f'results{matrix_size}.csv')
 
@@ -68,12 +69,19 @@ def main():
     speedup = seq_time / execution_time
     efficiency = speedup / p
 
+    # Calcolare le metriche teoriche di Amdahl e Gustafson
+    amdahl = 1 / (sequential_fraction + (1 - sequential_fraction) / p)
+    gustafson = p - (p - 1) * sequential_fraction
+
     new_data = {
         'p': p,
         'tempo di esecuzione': execution_time,
         'tempo di esecuzione ideale': ideal_execution_time,
         'speedup': speedup,
-        'efficienza': efficiency
+        'efficienza': efficiency,
+        'tempo sequenziale': seq_time,
+        'amdahl': amdahl,
+        'gustafson': gustafson
     }
 
     update_results_file(results_file, new_data)

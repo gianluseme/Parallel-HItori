@@ -21,6 +21,13 @@
 #define WHITE 0
 #define BLACK 1
 
+
+double total_seq_time_handle_requests;
+double total_seq_time_split_work;
+double total_seq_time_request_work;
+double total_seq_time_encode_stack;
+
+
 int proc_state = WHITE;
 
 typedef struct {
@@ -36,20 +43,15 @@ typedef struct {
     int col;
 } CompressedState;
 
-// Aggiungi questa funzione per eseguire il comando shell
-void execute_command(const char *command) {
-    int result = system(command);
-    if (result == -1) {
-        perror("system");
-        MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
-    }
-}
-
 int calculate_state_size(int rows) {
     return sizeof(int) * 2 + (rows * rows * (sizeof(char) + 7));  // Allinea a 8 byte
 }
 
 void send_stack(State *stack, int top, int dest, int rows, MPI_Datatype compressed_state_type, int rank, int size) {
+    double seq_time_encode_stack_start, seq_time_encode_stack_end;
+
+    seq_time_encode_stack_start = MPI_Wtime();
+
     CompressedState *compressed_stack = malloc(top * sizeof(CompressedState));
 
     for (int i = 0; i < top; i++) {
@@ -61,11 +63,14 @@ void send_stack(State *stack, int top, int dest, int rows, MPI_Datatype compress
     if (dest < rank && !(dest == 0 && rank == size - 1))
         proc_state = BLACK;
 
+    seq_time_encode_stack_end = MPI_Wtime();
+    total_seq_time_split_work += (seq_time_encode_stack_end- seq_time_encode_stack_start);
+
     MPI_Send(compressed_stack, top, compressed_state_type, dest, WORK_TAG, MPI_COMM_WORLD);
     free(compressed_stack);
 }
 
-bool have_enough_work_to_share(int top, int stack_cutoff, int *count) {
+bool have_enough_work_to_share(int top, int stack_cutoff, int *count, bool *sequential_work) {
     if (top < 0) {
         return false;
     }
@@ -75,6 +80,7 @@ bool have_enough_work_to_share(int top, int stack_cutoff, int *count) {
     }
 
     if (*count > stack_cutoff) {
+        *sequential_work = false;
         return true;
     }
 
@@ -82,6 +88,9 @@ bool have_enough_work_to_share(int top, int stack_cutoff, int *count) {
 }
 
 State* split_work_from_stack(State **stack, int *top, int rows, int *num_states, int cutoff_index) {
+    double seq_time_split_work_start, seq_time_split_work_end;
+
+    seq_time_split_work_start = MPI_Wtime();
     if (cutoff_index > *top) {
         cutoff_index = *top / 2;
     }
@@ -116,12 +125,19 @@ State* split_work_from_stack(State **stack, int *top, int rows, int *num_states,
     }
 
     *top = split_point - 1;
+
+    seq_time_split_work_end = MPI_Wtime();
+    total_seq_time_split_work += (seq_time_split_work_end - seq_time_split_work_start);
+
     return work_to_send;
 }
 
-void handle_work_request(int requesting_process, State **stack, int *top, int rank, int size, int rows, int stack_cutoff, MPI_Datatype compressed_state_type) {
+void handle_work_request(int requesting_process, State **stack, int *top, int rank, int size, int rows, int stack_cutoff, MPI_Datatype compressed_state_type, bool *sequential_work) {
     int count = 0;
-    if (have_enough_work_to_share(*top, stack_cutoff, &count)) {
+    double seq_time_handle_requests_start, seq_time_handle_requests_end;
+
+    seq_time_handle_requests_start = MPI_Wtime();
+    if (have_enough_work_to_share(*top, stack_cutoff, &count, sequential_work)) {
         int num_states;
         State* work_to_send = split_work_from_stack(stack, top, rows, &num_states, count);
 
@@ -134,15 +150,19 @@ void handle_work_request(int requesting_process, State **stack, int *top, int ra
             free(work_to_send[i].status);
         }
         free(work_to_send);
+        seq_time_handle_requests_end = MPI_Wtime();
+        total_seq_time_handle_requests += (seq_time_handle_requests_end - seq_time_handle_requests_start);
     } else {
         char no_work = 0;
         MPI_Send(&no_work, 1, MPI_CHAR, requesting_process, NO_WORK_TAG, MPI_COMM_WORLD);
     }
+
 }
 
-void handle_incoming_requests(State **stack, int *top, int rank, int size, int rows, int stack_cutoff, MPI_Datatype compressed_state_type) {
+void handle_incoming_requests(State **stack, int *top, int rank, int size, int rows, int stack_cutoff, MPI_Datatype compressed_state_type, bool *sequential_work) {
     MPI_Status status;
     int flag;
+    double seq_time_handle_requests_start, seq_time_handle_requests_end;
 
     MPI_Iprobe(MPI_ANY_SOURCE, REQUEST_TAG, MPI_COMM_WORLD, &flag, &status);
 
@@ -152,7 +172,10 @@ void handle_incoming_requests(State **stack, int *top, int rank, int size, int r
         char request;
         MPI_Recv(&request, 1, MPI_CHAR, source, REQUEST_TAG, MPI_COMM_WORLD, &status);
 
-        handle_work_request(source, stack, top, rank, size, rows, stack_cutoff, compressed_state_type);
+        seq_time_handle_requests_start = MPI_Wtime();
+        handle_work_request(source, stack, top, rank, size, rows, stack_cutoff, compressed_state_type, sequential_work);
+        seq_time_handle_requests_end = MPI_Wtime();
+        total_seq_time_handle_requests += (seq_time_handle_requests_end - seq_time_handle_requests_start);
 
         MPI_Iprobe(MPI_ANY_SOURCE, REQUEST_TAG, MPI_COMM_WORLD, &flag, &status);
     }
@@ -161,6 +184,7 @@ void handle_incoming_requests(State **stack, int *top, int rank, int size, int r
 bool request_work(State **stack, int *top, int rank, int size, int rows, MPI_Datatype compressed_state_type) {
     MPI_Status status;
     int stack_size = 0;
+    double seq_time_request_work_start, seq_time_request_work_end;
 
     for (int j = 1; j < size; j++) {
         int target = (rank + j) % size;
@@ -178,6 +202,8 @@ bool request_work(State **stack, int *top, int rank, int size, int rows, MPI_Dat
 
                 MPI_Recv(compressed_stack, stack_size, compressed_state_type, target, WORK_TAG, MPI_COMM_WORLD, &status);
 
+                seq_time_request_work_start = MPI_Wtime();
+
                 *top = stack_size - 1;
                 *stack = realloc(*stack, (*top + 1) * calculate_state_size(rows));
 
@@ -191,7 +217,12 @@ bool request_work(State **stack, int *top, int rank, int size, int rows, MPI_Dat
                     (*stack)[i].col = compressed_stack[i].col;
                 }
 
+                seq_time_request_work_end = MPI_Wtime();
+
+
                 free(compressed_stack);
+                total_seq_time_request_work += (seq_time_request_work_end - seq_time_request_work_start);
+
                 return true;
             } else if (status.MPI_TAG == NO_WORK_TAG) {
                 char dummy;
@@ -273,17 +304,22 @@ void send_token(char *token, int rank, int size) {
     }
 }
 
-void generateConfigurations(int **matrix, int rows, bool **visited, int rank, int size, int stack_cutoff, int work_chunk_size, MPI_Datatype compressed_state_type, bool benchmark_mode) {
+double generateConfigurations(int **matrix, int rows, bool **visited, int rank, int size, int stack_cutoff, int work_chunk_size, MPI_Datatype compressed_state_type, bool benchmark_mode) {
     long count = 0;
     bool found_solution = false;
     bool terminate = false;
     const int NUMRETRY = 50;
     char token = (rank == 0) ? 'W' : -1; // Token per l'anello, inizializzato nel processo root
+    bool sequential_work = true;
 
     State *stack = malloc(size * calculate_state_size(rows));
     int top = -1;
 
+    double seq_start_time = 0.0, seq_end_time, seq_total_time = 0.0;
+
+
     if (rank == 0) {
+        seq_start_time = MPI_Wtime();
         State initialState;
         initialState.status = malloc(rows * sizeof(char*));
         for (int i = 0; i < rows; i++) {
@@ -304,6 +340,7 @@ void generateConfigurations(int **matrix, int rows, bool **visited, int rank, in
                 broadcast_termination(rank, size);
                 break;
             }
+            //inizia la procedura di terminazione
             if (rank == 0) {
                 proc_state = WHITE;
                 token = 'W'; // WHITE
@@ -381,9 +418,15 @@ void generateConfigurations(int **matrix, int rows, bool **visited, int rank, in
                 }
                 free(currentState.status);
             }
+
         }
 
-        handle_incoming_requests(&stack, &top, rank, size, rows, stack_cutoff, compressed_state_type);
+        if(rank == 0 && sequential_work) {
+            seq_end_time = MPI_Wtime();
+            seq_total_time = seq_end_time - seq_start_time;
+        }
+
+        handle_incoming_requests(&stack, &top, rank, size, rows, stack_cutoff, compressed_state_type, &sequential_work);
 
         if (token == -1)
             handle_token_reception(&token, rank, size);
@@ -405,4 +448,6 @@ void generateConfigurations(int **matrix, int rows, bool **visited, int rank, in
 
     if(!benchmark_mode)
         printf("Process %d: total configurations explored: %ld\n", rank, count);
+
+    return seq_total_time;
 }
