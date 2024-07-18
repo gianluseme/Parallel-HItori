@@ -10,7 +10,7 @@ find_package(MPI REQUIRED)
 include_directories(.)
 
 # Imposta le opzioni di compilazione
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -g -Wall -Wextra -pedantic -fno-strict-aliasing -fstack-protector -D_FORTIFY_SOURCE=2")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -Wall -Wextra")
 set(CMAKE_C_STANDARD_LIBRARIES "${CMAKE_C_STANDARD_LIBRARIES} -lm")
 
 # Aggiungi il file sorgente e crea l'eseguibile
