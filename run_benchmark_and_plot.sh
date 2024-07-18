@@ -29,9 +29,6 @@ else
   exit 1
 fi
 
-# Compila il programma se necessario (assumendo un Makefile è presente)
-# make
-
 # Esegui il programma per ogni numero di processi e work chunk size
 for (( i=1; i<=$num_processes; i++ )); do
   work_chunk_size=${work_chunk_sizes[$((i-1))]}

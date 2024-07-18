@@ -10,6 +10,7 @@
 #include <time.h>
 
 
+// Stampa la griglia
 void print_grid(int **matrix, int n) {
     printf("Grid:\n");
     for (int i = 0; i < n; i++) {
@@ -20,6 +21,7 @@ void print_grid(int **matrix, int n) {
     }
 }
 
+// Stampa la soluzione del puzzle Hitori
 void print_solution(char **status, int n, int **matrix) {
     printf("Solution:\n");
     for (int i = 0; i < n; i++) {
@@ -32,6 +34,7 @@ void print_solution(char **status, int n, int **matrix) {
     }
 }
 
+// Mescola gli elementi di un array
 void shuffle(int *array, int size) {
     if (size > 1) {
         for (int i = 0; i < size - 1; i++) {
@@ -43,6 +46,7 @@ void shuffle(int *array, int size) {
     }
 }
 
+// Inizializza la griglia con valori casuali o predefiniti
 void initialize_grid(int **matrix, int n, bool random, bool brute_force) {
     if (random) {
         int *numbers = malloc(n * n * sizeof(int));
@@ -59,7 +63,7 @@ void initialize_grid(int **matrix, int n, bool random, bool brute_force) {
         }
         free(numbers);
     } else {
-        // Griglia predefinita (modificare secondo necessità per il caso rettangolare)
+        // Griglie predefinite
         if(!brute_force) {
             int values[8][8] = {
                     {4, 8, 7, 2, 3, 2, 1, 2},
@@ -94,7 +98,7 @@ void initialize_grid(int **matrix, int n, bool random, bool brute_force) {
     }
 }
 
-
+// Matrice dei punti visitati per la DFS usata per verificare la connettività delle celle non cancellate
 bool** createVisitedMatrix(int n) {
     bool** matrix = (bool**)malloc(n * sizeof(bool*));
     for (int i = 0; i < n; i++) {
@@ -110,7 +114,7 @@ void freeVisitedMatrix(bool** matrix, int n) {
     free(matrix);
 }
 
-// Funzione DFS ottimizzata
+// Funzione DFS usata per la verifica della connettività della griglia
 void dfs(int row, int col, bool **visited, char **board, int n) {
     if (row < 0 || row >= n || col < 0 || col >= n || visited[row][col] || board[row][col] == 'X') {
         return;
@@ -122,7 +126,7 @@ void dfs(int row, int col, bool **visited, char **board, int n) {
     dfs(row, col + 1, visited, board, n);
 }
 
-// Funzione per verificare la presenza di un'isola
+// Funzione per verificare se esistono punti non cancellati isolati
 bool hasIsland(char **board, bool **visited, int n) {
     // Trova un punto non visitato
     int startRow = -1, startCol = -1;
@@ -139,12 +143,11 @@ bool hasIsland(char **board, bool **visited, int n) {
     // Se non ci sono celle non bloccate, non ci sono isole
     if (startRow == -1) return false;
 
-    // Inizializza la matrice visited
     for (int i = 0; i < n; i++) {
         memset(visited[i], false, n * sizeof(bool));
     }
 
-    // Esegui DFS a partire dal primo punto trovato
+    // DFS a partire dal primo punto trovato
     dfs(startRow, startCol, visited, board, n);
 
     // Verifica se c'è qualche cella non visitata che non è 'X'
@@ -159,7 +162,7 @@ bool hasIsland(char **board, bool **visited, int n) {
 }
 
 
-// Funzione per verificare se una configurazione di griglia è valida
+// Funzione per verificare se una configurazione di griglia è valida (usata da DFS parallela)
 bool is_valid(int **matrix, char ** status, int n, int m) {
     // Verifica righe e colonne
     for (int i = 0; i < n; i++) {
@@ -197,7 +200,7 @@ bool is_valid(int **matrix, char ** status, int n, int m) {
     return true;
 }
 
-// Funzione per verificare se una configurazione di griglia è valida
+// Funzione per verificare se una configurazione di griglia è valida (usata da brute force)
 bool is_valid_1(int **matrix, char ** status, int n, int m) {
     // Verifica righe e colonne
     for (int i = 0; i < n; i++) {
@@ -241,7 +244,7 @@ bool is_valid_1(int **matrix, char ** status, int n, int m) {
     return true;
 }
 
-// Funzione per verificare se è sicuro mettere una X in una posizione (row, col)
+// Funzione per verificare se cancellare una casella in posizione (row, col) non viola le regole del gioco
 int isSafe(char **status, int rows, int cols, int row, int col, bool **visited, int ** grid) {
     // Controllo celle adiacenti per X
     int dR[] = {-1, 1, 0, 0};
@@ -386,6 +389,7 @@ void numberToGrid(uint64_t number, char **grid, int rows) {
     }
 }
 
+// Esegue un comando di sistema (per eseguire script Python per benchmark)
 void execute_command(const char *command) {
     int result = system(command);
     if (result == -1) {

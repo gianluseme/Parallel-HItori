@@ -22,6 +22,7 @@
 #define BLACK 1
 
 
+// Variabili globali per memorizzare i tempi di esecuzione delle varie fasi
 double total_seq_time_handle_requests;
 double total_seq_time_split_work;
 double total_seq_time_request_work;
@@ -30,13 +31,14 @@ double total_seq_time_encode_stack;
 
 int proc_state = WHITE;
 
+// Struttura per rappresentare lo stato delle configurazioni esplorate
 typedef struct {
     char **status;  // Matrice dei caratteri per lo stato delle celle
     int row;
     int col;
 } State;
 
-// Definizione di una nuova struttura per lo stato compresso
+// Definizione di una struttura per lo stato compresso
 typedef struct {
     uint64_t compressed_status;
     int row;
@@ -47,6 +49,7 @@ int calculate_state_size(int rows) {
     return sizeof(int) * 2 + (rows * rows * (sizeof(char) + 7));  // Allinea a 8 byte
 }
 
+// Invia lo stack con stati compressi a un altro processo
 void send_stack(State *stack, int top, int dest, int rows, MPI_Datatype compressed_state_type, int rank, int size) {
     double seq_time_encode_stack_start, seq_time_encode_stack_end;
 
@@ -64,12 +67,13 @@ void send_stack(State *stack, int top, int dest, int rows, MPI_Datatype compress
         proc_state = BLACK;
 
     seq_time_encode_stack_end = MPI_Wtime();
-    total_seq_time_split_work += (seq_time_encode_stack_end- seq_time_encode_stack_start);
+    total_seq_time_encode_stack += (seq_time_encode_stack_end- seq_time_encode_stack_start);
 
     MPI_Send(compressed_stack, top, compressed_state_type, dest, WORK_TAG, MPI_COMM_WORLD);
     free(compressed_stack);
 }
 
+// Verifica se c'è abbastanza lavoro per condividerlo
 bool have_enough_work_to_share(int top, int stack_cutoff, int *count, bool *sequential_work) {
     if (top < 0) {
         return false;
@@ -87,6 +91,7 @@ bool have_enough_work_to_share(int top, int stack_cutoff, int *count, bool *sequ
     return false;
 }
 
+// Divide il lavoro dallo stack per condividerlo con altri processi
 State* split_work_from_stack(State **stack, int *top, int rows, int *num_states, int cutoff_index) {
     double seq_time_split_work_start, seq_time_split_work_end;
 
@@ -132,6 +137,7 @@ State* split_work_from_stack(State **stack, int *top, int rows, int *num_states,
     return work_to_send;
 }
 
+// Gestisce una richiesta di lavoro da un altro processo
 void handle_work_request(int requesting_process, State **stack, int *top, int rank, int size, int rows, int stack_cutoff, MPI_Datatype compressed_state_type, bool *sequential_work) {
     int count = 0;
     double seq_time_handle_requests_start, seq_time_handle_requests_end;
@@ -159,6 +165,7 @@ void handle_work_request(int requesting_process, State **stack, int *top, int ra
 
 }
 
+// Gestisce le richieste di lavoro in arrivo
 void handle_incoming_requests(State **stack, int *top, int rank, int size, int rows, int stack_cutoff, MPI_Datatype compressed_state_type, bool *sequential_work) {
     MPI_Status status;
     int flag;
@@ -181,6 +188,7 @@ void handle_incoming_requests(State **stack, int *top, int rank, int size, int r
     }
 }
 
+// Richiede lavoro da altri processi quando lo stack è vuoto
 bool request_work(State **stack, int *top, int rank, int size, int rows, MPI_Datatype compressed_state_type) {
     MPI_Status status;
     int stack_size = 0;
@@ -235,6 +243,7 @@ bool request_work(State **stack, int *top, int rank, int size, int rows, MPI_Dat
     return false;
 }
 
+// Controlla se è stata trovata una soluzione
 bool check_solution_found(void) {
     MPI_Status status;
     int flag = 0;
@@ -247,6 +256,7 @@ bool check_solution_found(void) {
     return false;
 }
 
+// Trasmette a tutti i processi che una soluzione è stata trovata
 void broadcast_solution_found(int rank, int size) {
     char dummy = 0;
     for (int i = 0; i < size; i++) {
@@ -256,6 +266,7 @@ void broadcast_solution_found(int rank, int size) {
     }
 }
 
+// Trasmette a tutti i processi il messaggio di terminazione
 void broadcast_termination(int rank, int size) {
     char dummy = 0;
     for (int i = 0; i < size; i++) {
@@ -265,6 +276,7 @@ void broadcast_termination(int rank, int size) {
     }
 }
 
+// Controlla se è stato ricevuto il messaggio di terminazione
 bool check_termination(void) {
     int flag = 0;
     MPI_Iprobe(0, TERMINATION_TAG, MPI_COMM_WORLD, &flag, MPI_STATUS_IGNORE);
@@ -276,6 +288,7 @@ bool check_termination(void) {
     return false;
 }
 
+// Controlla se è stato ricevuto il messaggio di terminazione
 void handle_token_reception(char *token, int rank, int size) {
     int flag;
     int source;
@@ -292,6 +305,7 @@ void handle_token_reception(char *token, int rank, int size) {
     }
 }
 
+// Invia il token di terminazione al prossimo processo
 void send_token(char *token, int rank, int size) {
     if (*token != -1) {
         if (proc_state == BLACK)
@@ -304,6 +318,8 @@ void send_token(char *token, int rank, int size) {
     }
 }
 
+
+// Genera configurazioni del puzzle Hitori e verifica le soluzione (DFS parallela
 double generateConfigurations(int **matrix, int rows, bool **visited, int rank, int size, int stack_cutoff, int work_chunk_size, MPI_Datatype compressed_state_type, bool benchmark_mode) {
     long count = 0;
     bool found_solution = false;
@@ -317,7 +333,7 @@ double generateConfigurations(int **matrix, int rows, bool **visited, int rank, 
 
     double seq_start_time = 0.0, seq_end_time, seq_total_time = 0.0;
 
-
+    // Inizializzazione dello stack nel processo principale
     if (rank == 0) {
         seq_start_time = MPI_Wtime();
         State initialState;
@@ -332,6 +348,7 @@ double generateConfigurations(int **matrix, int rows, bool **visited, int rank, 
         stack[++top] = initialState;
     }
 
+    // Ciclo principale per generare configurazioni e verificare soluzioni
     while (!found_solution && !terminate) {
         if (top < 0) {
             if (size == 1)
@@ -452,6 +469,7 @@ double generateConfigurations(int **matrix, int rows, bool **visited, int rank, 
     return seq_total_time;
 }
 
+// Approccio brute force per l'esplorazione delle configurazioni della griglia
 void generate_solution(int **matrix, int n, int rank, int size, bool **visited, bool benchmark) {
     long max_x = pow(2, n * n);
     long chunk_size = max_x / size;
