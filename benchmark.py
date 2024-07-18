@@ -79,7 +79,7 @@ def main():
         'tempo di esecuzione ideale': ideal_execution_time,
         'speedup': speedup,
         'efficienza': efficiency,
-        'tempo sequenziale': seq_time,
+        'tempo sequenziale': sequential_fraction,
         'amdahl': amdahl,
         'gustafson': gustafson
     }
