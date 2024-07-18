@@ -47,18 +47,18 @@ int main(int argc, char** argv) {
     int stack_cutoff = 0;
     int work_chunk_size = 0;
     bool benchmark_mode = false;
+    bool brute_force = false;
 
     double seq_time_start, seq_time_end, total_seq_time;
 
     int option;
-    while ((option = getopt(argc, argv, "n:pc:w:b")) != -1) {
+    while ((option = getopt(argc, argv, "n:pc:w:bf")) != -1) {
         switch (option) {
             case 'n':
                 n = atoi(optarg);
                 break;
             case 'p':
                 random = false;
-                n = 8;
                 break;
             case 'c':
                 stack_cutoff = atoi(optarg);
@@ -68,6 +68,9 @@ int main(int argc, char** argv) {
                 break;
             case 'b':
                 benchmark_mode = true;
+                break;
+            case 'f':
+                brute_force = true;
                 break;
             default:
                 if (rank == 0) {
@@ -85,6 +88,12 @@ int main(int argc, char** argv) {
         MPI_Finalize();
         return 1;
     }
+
+    if(!random)  {
+        if(brute_force)n = 5;
+        else n = 8;
+    }
+
 
     if (stack_cutoff == 0 || work_chunk_size == 0) {
         if (rank == 0)
@@ -107,11 +116,11 @@ int main(int argc, char** argv) {
 
     srand(60);
 
-    initialize_grid(matrix, n, random);
     seq_time_initialize_grid_end = MPI_Wtime();
     total_seq_time_initialize_grid += (seq_time_initialize_grid_end - seq_time_initialize_grid_start);
 
     if (rank == 0) {
+        initialize_grid(matrix, n, random, brute_force);
         seq_time_print_start = MPI_Wtime();
         print_grid(matrix, n);
         seq_time_print_end = MPI_Wtime();
@@ -123,6 +132,9 @@ int main(int argc, char** argv) {
     double seq_work_time = 0.0;
 
     int iterations = benchmark_mode ? 10 : 1;
+
+    if(brute_force)
+        iterations = 1;
 
     double total_seq_time_accumulated = 0.0;
     double total_time_accumulated = 0.0;
@@ -149,7 +161,12 @@ int main(int argc, char** argv) {
         seq_time_end = MPI_Wtime();
         total_seq_time = (seq_time_end - seq_time_start);
 
-        seq_work_time = generateConfigurations(matrix, n, visited, rank, size, stack_cutoff, work_chunk_size, compressed_state_type, benchmark_mode);
+        if(!brute_force) {
+            seq_work_time = generateConfigurations(matrix, n, visited, rank, size, stack_cutoff, work_chunk_size,
+                                                   compressed_state_type, benchmark_mode);
+        } else
+            generate_solution(matrix, n, rank, size, visited);
+
 
         local_total_seq_time = total_seq_time_create_type + total_seq_time_initialize_grid + total_seq_time_print + total_seq_time_handle_requests + total_seq_time_split_work + total_seq_time_request_work + total_seq_time_encode_stack + total_seq_time;
 

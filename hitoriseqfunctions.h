@@ -43,7 +43,7 @@ void shuffle(int *array, int size) {
     }
 }
 
-void initialize_grid(int **matrix, int n, bool random) {
+void initialize_grid(int **matrix, int n, bool random, bool brute_force) {
     if (random) {
         int *numbers = malloc(n * n * sizeof(int));
         int max_duplicates = 1;
@@ -60,19 +60,35 @@ void initialize_grid(int **matrix, int n, bool random) {
         free(numbers);
     } else {
         // Griglia predefinita (modificare secondo necessità per il caso rettangolare)
-        int values[8][8] = {
-                {4, 8, 7, 2, 3, 2, 1, 2},
-                {5, 6, 1, 3, 4, 1, 5, 7},
-                {7, 2, 2, 8, 2, 1, 7, 3},
-                {5, 7, 1, 4, 8, 3, 6, 4},
-                {7, 1, 5, 2, 2, 7, 5, 4},
-                {6, 4, 1, 7, 5, 2, 8, 1},
-                {3, 7, 6, 5, 6, 4, 2, 8},
-                {3, 3, 4, 6, 2, 8, 7, 1}
-        };
-        for (int i = 0; i < n && i < 8; i++) {
-            for (int j = 0; j < n && j < 8; j++) {
-                matrix[i][j] = values[i][j];
+        if(!brute_force) {
+            int values[8][8] = {
+                    {4, 8, 7, 2, 3, 2, 1, 2},
+                    {5, 6, 1, 3, 4, 1, 5, 7},
+                    {7, 2, 2, 8, 2, 1, 7, 3},
+                    {5, 7, 1, 4, 8, 3, 6, 4},
+                    {7, 1, 5, 2, 2, 7, 5, 4},
+                    {6, 4, 1, 7, 5, 2, 8, 1},
+                    {3, 7, 6, 5, 6, 4, 2, 8},
+                    {3, 3, 4, 6, 2, 8, 7, 1}
+            };
+            for (int i = 0; i < n && i < 8; i++) {
+                for (int j = 0; j < n && j < 8; j++) {
+                    matrix[i][j] = values[i][j];
+                }
+            }
+        }
+        else {
+            int values[5][5] = {
+                    {1, 1, 5, 4, 3},
+                    {4, 5, 1, 3, 3},
+                    {2, 4, 4, 2, 5},
+                    {2, 4, 2, 5, 1},
+                    {5, 1, 4, 2, 3}
+            };
+            for (int i = 0; i < n && i < 5; i++) {
+                for (int j = 0; j < n && j < 5; j++) {
+                    matrix[i][j] = values[i][j];
+                }
             }
         }
     }
@@ -158,6 +174,50 @@ bool is_valid(int **matrix, char ** status, int n, int m) {
                     return false;
                 }
                 used[value] = true;
+            }
+        }
+    }
+
+    // Verifica colonne per duplicati
+    for (int j = 0; j < m; j++) {
+        bool used[n + 1];
+        memset(used, false, sizeof(used));
+
+        for (int i = 0; i < n; i++) {
+            if (status[i][j] != 'X') {
+                int value = matrix[i][j];
+                if (value != 0 && used[value]) {
+                    return false;
+                }
+                used[value] = true;
+            }
+        }
+    }
+
+    return true;
+}
+
+// Funzione per verificare se una configurazione di griglia è valida
+bool is_valid_1(int **matrix, char ** status, int n, int m) {
+    // Verifica righe e colonne
+    for (int i = 0; i < n; i++) {
+        bool used[m + 1];
+        memset(used, false, sizeof(used));
+
+        for (int j = 0; j < m; j++) {
+            // Verifica righe per duplicati
+            if (status[i][j] != 'X') {
+                int value = matrix[i][j];
+                if (value != 0 && used[value]) {
+                    return false;
+                }
+                used[value] = true;
+            } else {
+                // Controlla adiacenze per 'X' sulla stessa riga e colonna
+                if ((j > 0 && status[i][j - 1] == 'X') || (j < m - 1 && status[i][j + 1] == 'X') ||
+                    (i > 0 && status[i - 1][j] == 'X') || (i < n - 1 && status[i + 1][j] == 'X')) {
+                    return false;
+                }
             }
         }
     }

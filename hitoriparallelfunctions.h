@@ -451,3 +451,42 @@ double generateConfigurations(int **matrix, int rows, bool **visited, int rank, 
 
     return seq_total_time;
 }
+
+void generate_solution(int **matrix, int n, int rank, int size, bool **visited) {
+    long max_x = pow(2, n * n);
+    long chunk_size = max_x / size;
+    long start = rank * chunk_size;
+    long end = (rank == size - 1) ? max_x : start + chunk_size;
+    int count_solutions = 0;
+    int global_count = 0;
+
+    printf("p%d; start: %ld, end: %ld\n", rank, start, end);
+
+    char **status = malloc(n * sizeof(char*));
+    for (int i = 0; i < n; i++) {
+        status[i] = malloc(n * sizeof(char));
+        memset(status[i], '.', n * sizeof(char));
+    }
+
+    for (long config = start; config < end; config++) {
+
+        numberToGrid(config, status, n);
+        if (is_valid_1(matrix, status, n, n) && !hasIsland(status, visited, n)) {
+            printf("Process %d has found solution\n", rank);
+            print_solution(status, n, matrix);
+            count_solutions++;
+            break;
+        }
+    }
+
+    MPI_Reduce(&count_solutions, &global_count, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
+
+    for(int i = 0; i < n; i++) {
+        free(status[i]);
+    }
+    free(status);
+
+    printf("There are %d solutions for this Hitori puzzle\n", global_count);
+
+    return;
+}
