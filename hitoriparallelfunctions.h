@@ -452,7 +452,7 @@ double generateConfigurations(int **matrix, int rows, bool **visited, int rank, 
     return seq_total_time;
 }
 
-void generate_solution(int **matrix, int n, int rank, int size, bool **visited) {
+void generate_solution(int **matrix, int n, int rank, int size, bool **visited, bool benchmark) {
     long max_x = pow(2, n * n);
     long chunk_size = max_x / size;
     long start = rank * chunk_size;
@@ -485,8 +485,6 @@ void generate_solution(int **matrix, int n, int rank, int size, bool **visited) 
         free(status[i]);
     }
     free(status);
-
-    printf("There are %d solutions for this Hitori puzzle\n", global_count);
-
-    return;
+    if(rank == 0 && !benchmark)
+        printf("There are %d solutions for this Hitori puzzle\n", global_count);
 }

@@ -165,7 +165,7 @@ int main(int argc, char** argv) {
             seq_work_time = generateConfigurations(matrix, n, visited, rank, size, stack_cutoff, work_chunk_size,
                                                    compressed_state_type, benchmark_mode);
         } else
-            generate_solution(matrix, n, rank, size, visited);
+            generate_solution(matrix, n, rank, size, visited, benchmark_mode);
 
 
         local_total_seq_time = total_seq_time_create_type + total_seq_time_initialize_grid + total_seq_time_print + total_seq_time_handle_requests + total_seq_time_split_work + total_seq_time_request_work + total_seq_time_encode_stack + total_seq_time;
