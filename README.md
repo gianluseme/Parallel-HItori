@@ -20,7 +20,7 @@ This project implements two parallel approaches to solve the Hitori puzzle using
 
 ## Compilation
 
-To compile the program, run the provided `build.sh` script:
+To compile the program, run the provided `compile.sh` script:
 
 ```sh
 ./compile.sh
