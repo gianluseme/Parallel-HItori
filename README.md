@@ -45,5 +45,5 @@ By adding the option -b, the program runs in benchmark mode.
 
 ## References
 
-- [Parallel Depth First Search](users.atw.hu/parallelcomp/ch11lev1sec4.html)
+- [Parallel Depth First Search](http://users.atw.hu/parallelcomp/ch11lev1sec4.html)
 - V. K. V. Nageshwara Rao, "Parallel Depth First Search, Part I: Implementation,", 1987.
